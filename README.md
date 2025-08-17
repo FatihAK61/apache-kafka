@@ -22,7 +22,7 @@ A comprehensive Spring Boot application demonstrating Apache Kafka integration w
 
 ### 1. Clone the Repository
 ```bash
-git clone <repository-url>
+git clone https://github.com/FatihAK61/apache-kafka.git
 cd apache-kafka
 ```
 
