@@ -1,6 +1,7 @@
 # Spring Boot Apache Kafka Integration
 
-A comprehensive Spring Boot application demonstrating Apache Kafka integration with producer and consumer implementations, configuration management, and REST API endpoints.
+A comprehensive Spring Boot application demonstrating Apache Kafka integration with producer and consumer
+implementations, configuration management, and REST API endpoints.
 
 ## 🚀 Features
 
@@ -21,40 +22,103 @@ A comprehensive Spring Boot application demonstrating Apache Kafka integration w
 ## 🛠️ Installation
 
 ### 1. Clone the Repository
+
 ```bash
 git clone https://github.com/FatihAK61/apache-kafka.git
 cd apache-kafka
 ```
 
 ### 2. Start Kafka with Docker (Optional)
+
 ```bash
 # Create docker-compose.yml
-version: '3.8'
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    ports:
-      - "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-
   kafka:
     image: confluentinc/cp-kafka:latest
+    container_name: kafka
     ports:
       - "9092:9092"
-    depends_on:
-      - zookeeper
+      - "9093:9093"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # KRaft mode konfigürasyonu
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:9093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+
+      # Cluster konfigürasyonu
+      KAFKA_CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+
+      # Log konfigürasyonu
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # Topic yönetimi
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+
+      # Log retention ayarları
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+
+      # JVM heap ayarları
+      KAFKA_HEAP_OPTS: "-Xmx1G -Xms1G"
+
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - kafka-logs:/var/lib/kafka/logs
+    networks:
+      - kafka-network
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-kraft
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    networks:
+      - kafka-network
+    restart: unless-stopped
+
+volumes:
+  kafka-data:
+    driver: local
+  kafka-logs:
+    driver: local
+
+networks:
+  kafka-network:
+    driver: bridge
+
 
 # Start services
 docker-compose up -d
 ```
 
 ### 3. Build and Run
+
 ```bash
 ./mvnw clean install
 ./mvnw spring-boot:run
@@ -63,28 +127,24 @@ docker-compose up -d
 ## ⚙️ Configuration
 
 ### Application Properties
+
 ```yaml
-spring:
-  kafka:
-    bootstrap-servers: localhost:9092
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
-      retries: 3
-    consumer:
-      group-id: my-consumer-group
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      auto-offset-reset: earliest
-      enable-auto-commit: false
-    listener:
-      ack-mode: manual_immediate
+spring.application.name=apache-kafka
+server.port=8081
+spring.kafka.consumer.bootstrap-servers=localhost:9092
+spring.kafka.consumer.group-id=myGroup
+spring.kafka.consumer.auto-offset-reset=earliest
+spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+spring.kafka.producer.bootstrap-servers=localhost:9092
+spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer
+spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer
 ```
 
 ## 📤 Producer Usage
 
 ### Send Message via REST API
+
 ```bash
 curl -X POST http://localhost:8080/api/messages/send \
   -H "Content-Type: application/json" \
@@ -100,19 +160,21 @@ curl -X POST http://localhost:8080/api/messages/send \
 ```
 
 ### Producer Service Example
+
 ```java
+
 @Service
 public class KafkaProducerService {
-    
+
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
-    
+
     public void sendMessage(String topic, String key, Object message) {
         kafkaTemplate.send(topic, key, message)
-            .addCallback(
-                result -> log.info("Message sent successfully"),
-                failure -> log.error("Failed to send message", failure)
-            );
+                .addCallback(
+                        result -> log.info("Message sent successfully"),
+                        failure -> log.error("Failed to send message", failure)
+                );
     }
 }
 ```
@@ -120,13 +182,15 @@ public class KafkaProducerService {
 ## 📥 Consumer Usage
 
 ### Consumer Service Example
+
 ```java
+
 @Service
 public class KafkaConsumerService {
-    
+
     @KafkaListener(topics = "user-events", groupId = "user-events-group")
-    public void consumeUserEvent(@Payload Object message, 
-                               Acknowledgment acknowledgment) {
+    public void consumeUserEvent(@Payload Object message,
+                                 Acknowledgment acknowledgment) {
         try {
             // Process message
             log.info("Received message: {}", message);
@@ -140,14 +204,15 @@ public class KafkaConsumerService {
 
 ## 🌐 API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/messages/send` | Send message to Kafka topic |
-| GET | `/actuator/health` | Application health check |
+| Method | Endpoint             | Description                 |
+|--------|----------------------|-----------------------------|
+| POST   | `/api/messages/send` | Send message to Kafka topic |
+| GET    | `/actuator/health`   | Application health check    |
 
 ### Request/Response Examples
 
 **Send Message:**
+
 ```json
 // Request
 {
@@ -166,22 +231,26 @@ public class KafkaConsumerService {
 ## 🔧 Key Components
 
 ### 1. Kafka Configuration
+
 - **Producer Factory**: Configures message serialization and delivery settings
 - **Consumer Factory**: Sets up message deserialization and processing options
 - **Kafka Template**: Provides high-level operations for sending messages
 
 ### 2. Error Handling
+
 - **Retry Logic**: Automatic retry for failed message delivery
 - **Dead Letter Queue**: Handle messages that cannot be processed
 - **Acknowledgment**: Manual message acknowledgment for better control
 
 ### 3. Health Monitoring
+
 - **Health Indicators**: Monitor Kafka connection status
 - **Metrics**: Track message throughput and error rates
 
 ## 📊 Monitoring
 
 The application includes health checks accessible at:
+
 - `http://localhost:8080/actuator/health`
 
 ## 🛡️ Best Practices
@@ -201,6 +270,7 @@ The application includes health checks accessible at:
 3. **Consumer Lag**: Check consumer group performance and scaling
 
 ### Logs
+
 ```bash
 # View application logs
 ./mvnw spring-boot:run
@@ -212,6 +282,7 @@ docker-compose logs kafka
 ## 📚 Dependencies
 
 ```xml
+
 <dependencies>
     <dependency>
         <groupId>org.springframework.boot</groupId>
