@@ -1,7 +1,7 @@
 # Spring Boot Apache Kafka Integration
 
 A comprehensive Spring Boot application demonstrating Apache Kafka integration with producer and consumer
-implementations, configuration management, and REST API endpoints.
+implementations, configuration management.
 
 ## 🚀 Features
 
