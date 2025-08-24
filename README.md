@@ -9,7 +9,6 @@ implementations, configuration management.
 - **Consumer Service**: Listen and process messages from Kafka topics
 - **REST API**: HTTP endpoints for message publishing
 - **Configuration Management**: Customizable Kafka settings
-- **Error Handling**: Robust error handling and retry mechanisms
 - **Health Checks**: Kafka connection monitoring
 
 ## 📋 Prerequisites
@@ -206,27 +205,9 @@ public class KafkaConsumerService {
 
 | Method | Endpoint             | Description                 |
 |--------|----------------------|-----------------------------|
+| GET    | `/api/messages/send` | Send message to Kafka topic |
 | POST   | `/api/messages/send` | Send message to Kafka topic |
 | GET    | `/actuator/health`   | Application health check    |
-
-### Request/Response Examples
-
-**Send Message:**
-
-```json
-// Request
-{
-  "topic": "notifications",
-  "key": "notify-001",
-  "message": "Hello Kafka!"
-}
-
-// Response
-{
-  "status": "success",
-  "message": "Message sent successfully"
-}
-```
 
 ## 🔧 Key Components
 
